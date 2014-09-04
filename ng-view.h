@@ -22,3 +22,8 @@ typedef enum {
 } NgViewCoordinateType;
 
 NgViewCoordinateType ng_view_translate_coordinate(NgView *view, gint vx, gint vy, guint *ox, guint *oy);
+
+void ng_view_tmp_line_start(NgView *view, guint x, guint y);
+void ng_view_tmp_line_end(NgView *view, guint x, guint y);
+void ng_view_tmp_line_clear(NgView *view);
+gboolean ng_view_tmp_line_finish(NgView *view, guint *sx, guint *sy, guint *ex, guint *ey);

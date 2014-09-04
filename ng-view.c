@@ -13,6 +13,10 @@ enum ORIENTATION {
     ORIENTATION_VERTICAL
 };
 
+enum VIEWFLAGS {
+    FLAG_TMP_LINE = 1 << 0
+};
+
 struct _NgView {
     Nonogram *ng;
     guint gridsize;
@@ -25,7 +29,30 @@ struct _NgView {
 
     gint offsetx;
     gint offsety;
+
+    guint32 flags;
+
+    guint tmp_line_start_x;
+    guint tmp_line_start_y;
+    guint tmp_line_end_x;
+    guint tmp_line_end_y;
 };
+
+void ng_view_straighten_line(guint isx, guint isy, guint iex, guint iey,
+                             guint *osx, guint *osy, guint *oex, guint *oey)
+{
+    guint dx = isx > iex ? isx-iex : iex-isx;
+    guint dy = isy > iey ? isy-iey : iey-isy;
+
+    if (dy > dx)
+        iex = isx;
+    else
+        iey = isy;
+    if (osx) *osx = isx > iex ? iex : isx;
+    if (osy) *osy = isy > iey ? iey : isy;
+    if (oex) *oex = isx > iex ? isx : iex;
+    if (oey) *oey = isy > iey ? isy : iey;
+}
 
 void ng_view_render_grid(cairo_surface_t *surf, guint gridsize, guint cx, guint cy,
         gint highlight_x, gint highlight_y, gdouble shade)
@@ -235,6 +262,34 @@ void ng_view_render(NgView *view, cairo_t *cr, guint width, guint height)
         cairo_rectangle(cr, 0, 0, view->surf_width[SURF_COLHINTS], view->surf_height[SURF_COLHINTS]);
         cairo_fill(cr);
     }
+
+    if (view->flags & FLAG_TMP_LINE) {
+        cairo_identity_matrix(cr);
+        cairo_set_source_rgba(cr, 0.7, 0.7, 0.7, 0.5);
+        guint sx, sy, ex, ey;
+        ng_view_straighten_line(view->tmp_line_start_x, view->tmp_line_start_y,
+                                view->tmp_line_end_x, view->tmp_line_end_y,
+                                &sx, &sy, &ex, &ey);
+        guint i;
+        guint ox = 1, oy = 1;
+        guint len = 1;
+        if (sx == ex) {
+            ox = 0;
+            len = ey-sy+1;
+        }
+        if (sy == ey) {
+            oy = 0;
+            len = ex-sx+1;
+        }
+        if (len > 1) {
+            for (i = 0; i < len; ++i) {
+                cairo_rectangle(cr, (sx + i * ox) * view->gridsize + 1.0,
+                                    (sy + i * oy) * view->gridsize + 1.0,
+                                    view->gridsize - 2.0, view->gridsize - 2.0);
+                cairo_fill(cr);
+            }
+        }
+    }
 }
 
 NgViewCoordinateType ng_view_translate_coordinate(NgView *view, gint vx, gint vy, guint *ox, guint *oy)
@@ -270,3 +325,47 @@ NgViewCoordinateType ng_view_translate_coordinate(NgView *view, gint vx, gint vy
     return NG_VIEW_COORDINATE_UNKNOWN;
 }
 
+void ng_view_tmp_line_start(NgView *view, guint x, guint y)
+{
+    if (view == NULL || view->ng == NULL)
+        return;
+    if (x >= view->ng->width || y >= view->ng->height)
+        return;
+
+    view->tmp_line_start_x = view->tmp_line_end_x = x;
+    view->tmp_line_start_y = view->tmp_line_end_y = y;
+    view->flags |= FLAG_TMP_LINE;
+}
+
+void ng_view_tmp_line_end(NgView *view, guint x, guint y)
+{
+    if (view == NULL || view->ng == NULL)
+        return;
+    if (!(view->flags & FLAG_TMP_LINE))
+        return;
+    if (x >= view->ng->width || y >= view->ng->height)
+        return;
+    view->tmp_line_end_x = x;
+    view->tmp_line_end_y = y;
+}
+
+void ng_view_tmp_line_clear(NgView *view)
+{
+    if (view == NULL)
+        return;
+    view->flags &= ~FLAG_TMP_LINE;
+}
+
+gboolean ng_view_tmp_line_finish(NgView *view, guint *sx, guint *sy, guint *ex, guint *ey)
+{
+    if (view == NULL || view->ng == NULL)
+        return FALSE;
+    if (!(view->flags & FLAG_TMP_LINE))
+        return FALSE;
+
+    ng_view_straighten_line(view->tmp_line_start_x, view->tmp_line_start_y,
+                            view->tmp_line_end_x, view->tmp_line_end_y,
+                            sx, sy, ex, ey);
+
+    return TRUE;
+}

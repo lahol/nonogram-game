@@ -37,16 +37,48 @@ gboolean ng_window_button_press_event(GtkWidget *widget, GdkEventButton *event, 
     if (win == NULL)
         return TRUE;
 
-    Nonogram *ng = ng_view_get_data(win->view);
-    if (!ng)
-        return TRUE;
-
     guint vx, vy;
-    guchar value = 0xff;
     NgViewCoordinateType type = ng_view_translate_coordinate(win->view, event->x,
             event->y, &vx, &vy);
    
     if (type == NG_VIEW_COORDINATE_FIELD) {
+        ng_view_tmp_line_start(win->view, vx, vy);
+    }
+    ng_window_update(win);
+
+    return TRUE;
+}
+
+gboolean ng_window_motion_notify_event(GtkWidget *widget, GdkEventMotion *event, NgWindow *win)
+{
+    if (win == NULL)
+        return TRUE;
+
+    guint vx, vy;
+    NgViewCoordinateType type = ng_view_translate_coordinate(win->view, event->x,
+            event->y, &vx, &vy);
+   
+    if (type == NG_VIEW_COORDINATE_FIELD) {
+        ng_view_tmp_line_end(win->view, vx, vy);
+    }
+    ng_window_update(win);
+
+    return TRUE;
+}
+
+gboolean ng_window_button_release_event(GtkWidget *widget, GdkEventButton *event, NgWindow *win)
+{
+    if (win == NULL)
+        return TRUE;
+
+    guchar value = 0xff;
+    guint vx, vy;
+    NgViewCoordinateType type = ng_view_translate_coordinate(win->view, event->x,
+            event->y, &vx, &vy);
+   
+    if (type == NG_VIEW_COORDINATE_FIELD) {
+        ng_view_tmp_line_end(win->view, vx, vy);
+
         if (event->button == 1) {
             if (event->state & GDK_SHIFT_MASK)
                 value = 0;
@@ -61,23 +93,17 @@ gboolean ng_window_button_press_event(GtkWidget *widget, GdkEventButton *event, 
         }
         else
             goto done;
-        ng_fill_area(ng, vx, vy, 1, 1, value);
-        ng_view_update_map(win->view, vx, vy, 1, 1);
-        ng_window_update(win);
+        guint sx, sy, ex, ey;
+        if (ng_view_tmp_line_finish(win->view, &sx, &sy, &ex, &ey)) {
+            ng_fill_area(ng_view_get_data(win->view), sx, sy, ex-sx+1, ey-sy+1, value);
+            ng_view_update_map(win->view, sx, sy, ex-sx+1, ey-sy+1);
+            ng_window_update(win);
+        }
     }
 
 done:
-    return TRUE;
-}
+    ng_view_tmp_line_clear(win->view);
 
-gboolean ng_window_motion_notify_event(GtkWidget *widget, GdkEventMotion *event, NgWindow *win)
-{
-    return TRUE;
-}
-
-gboolean ng_window_button_release_event(GtkWidget *widget, GdkEventButton *event, NgWindow *win)
-{
-    return TRUE;
 }
 
 gboolean ng_window_key_release_event(GtkWidget *widget, GdkEventKey *event, NgWindow *win)
