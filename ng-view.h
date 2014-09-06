@@ -12,7 +12,18 @@ Nonogram *ng_view_get_data(NgView *view);
 
 void ng_view_update_map(NgView *view, guint x, guint y, guint cx, guint cy);
 
-void ng_view_render(NgView *view, cairo_t *cr, guint width, guint height);
+void ng_view_render(NgView *view, cairo_t *cr);
+
+void ng_view_set_size(NgView *view, guint width, guint height);
+
+typedef enum {
+    NG_VIEW_SCROLL_LEFT,
+    NG_VIEW_SCROLL_RIGHT,
+    NG_VIEW_SCROLL_UP,
+    NG_VIEW_SCROLL_DOWN
+} NgViewScrollDirection;
+
+void ng_view_scroll(NgView *view, NgViewScrollDirection direction);
 
 typedef enum {
     NG_VIEW_COORDINATE_FIELD,
