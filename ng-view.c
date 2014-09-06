@@ -41,7 +41,41 @@ struct _NgView {
     guint tmp_line_start_y;
     guint tmp_line_end_x;
     guint tmp_line_end_y;
+
+    /* private */
+    guint reference_count;
 };
+
+void ng_view_free(NgView *view)
+{
+    if (!view)
+        return;
+    guint i;
+    for (i = 0; i < COUNT_SURF; ++i) {
+        if (view->surface[i])
+            cairo_surface_destroy(view->surface[i]);
+    }
+    if (view->ng)
+        ng_data_unref(view->ng);
+    g_free(view);
+}
+
+void ng_view_ref(NgView *view)
+{
+    g_return_if_fail(view != NULL);
+
+    ++view->reference_count;
+}
+
+void ng_view_unref(NgView *view)
+{
+    g_return_if_fail(view != NULL);
+
+    if (view->reference_count <= 1)
+        ng_view_free(view);
+    else
+        --view->reference_count;
+}
 
 void ng_view_update_visible_area(NgView *view)
 {
@@ -163,11 +197,13 @@ NgView *ng_view_new(Nonogram *ng)
     NgView *view = g_malloc0(sizeof(NgView));
     view->ng = ng;
     view->gridsize = 16;
+    view->reference_count = 1;
 
     view->max_row_hints = 1;
     view->max_col_hints = 1;
 
     if (ng) {
+        ng_data_ref(ng);
         guint i;
         guint16 num;
         for (i = 0; i < ng->height; ++i) {
@@ -181,6 +217,8 @@ NgView *ng_view_new(Nonogram *ng)
                 view->max_col_hints = num;
         }
 
+        printf("max hints: %d, %d\n", view->max_row_hints, view->max_col_hints);
+
         view->surf_width[SURF_FIELD] = view->gridsize * ng->width;
         view->surf_height[SURF_FIELD] = view->gridsize * ng->height;
         view->surf_width[SURF_ROWHINTS] = view->gridsize * view->max_row_hints;
@@ -188,9 +226,11 @@ NgView *ng_view_new(Nonogram *ng)
         view->surf_width[SURF_COLHINTS] = view->gridsize * ng->width;
         view->surf_height[SURF_COLHINTS] = view->gridsize * view->max_col_hints;
 
-        for (i = 0; i < COUNT_SURF; ++i)
+        for (i = 0; i < COUNT_SURF; ++i) {
+            printf("surface[%d]: %d x %d\n", i, view->surf_width[i], view->surf_height[i]);
             view->surface[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                     view->surf_width[i], view->surf_height[i]);
+        }
 
         ng_view_render_grid(view->surface[SURF_FIELD], view->gridsize, ng->width, ng->height, 5, 5, 1.0);
         ng_view_render_grid(view->surface[SURF_ROWHINTS], view->gridsize, view->max_row_hints, ng->height, -1, 5, 0.8);
@@ -202,18 +242,6 @@ NgView *ng_view_new(Nonogram *ng)
     }
 
     return view;
-}
-
-void ng_view_free(NgView *view)
-{
-    if (!view)
-        return;
-    guint i;
-    for (i = 0; i < COUNT_SURF; ++i) {
-        if (view->surface[i])
-            cairo_surface_destroy(view->surface[i]);
-    }
-    g_free(view);
 }
 
 Nonogram *ng_view_get_data(NgView *view)
@@ -235,8 +263,8 @@ void ng_view_update_map(NgView *view, guint x, guint y, guint cx, guint cy)
 
     cairo_t *cr = cairo_create(view->surface[SURF_FIELD]);
 
-    for (j = y; j < y + cy && j < view->ng->width; ++j) {
-        for (i = x; i < x + cx && i < view->ng->height; ++i) {
+    for (j = y; j < y + cy && j < view->ng->height; ++j) {
+        for (i = x; i < x + cx && i < view->ng->width; ++i) {
             switch (view->ng->field[j * view->ng->width + i]) {
                 case 1:
                     cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 1.0);

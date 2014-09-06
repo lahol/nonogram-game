@@ -3,8 +3,13 @@
 #include <json-glib/json-glib.h>
 #include <json-glib/json-gobject.h>
 
+struct _NonogramPrivate {
+    guint reference_count;
+};
+
 void ng_free(Nonogram *ng)
 {
+    printf("ng_free(%p)\n", ng);
     if (ng == NULL)
         return;
     g_free(ng->row_hints);
@@ -12,12 +17,30 @@ void ng_free(Nonogram *ng)
     g_free(ng->row_offsets);
     g_free(ng->col_offsets);
     g_free(ng->field);
+    g_free(ng->priv);
     g_free(ng);
+}
+
+void ng_data_ref(Nonogram *ng)
+{
+    g_return_if_fail(ng != NULL);
+    if (ng->priv == NULL)
+        ng->priv = g_malloc0(sizeof(NonogramPrivate));
+    ++ng->priv->reference_count;
+}
+
+void ng_data_unref(Nonogram *ng)
+{
+    g_return_if_fail(ng != NULL);
+    
+    if (ng->priv == NULL || ng->priv->reference_count <= 1)
+        ng_free(ng);
+    else
+        --ng->priv->reference_count;
 }
 
 gboolean ng_read_data_general(Nonogram *ng, JsonNode *node)
 {
-    printf("read data general\n");
     if (!JSON_NODE_HOLDS_OBJECT(node) || ng == NULL)
         return FALSE;
     JsonObject *obj = json_node_get_object(node);
@@ -59,11 +82,13 @@ void ng_hint_array_read_data(JsonArray *array, guint32 *hints, guint16 *offsets,
     GList *tmp;
     guint32 i;
 
-    for (tmp = elements, i = 0; tmp != NULL && i < count; tmp = g_list_next(tmp), ++i) {
-        if (JSON_NODE_HOLDS_ARRAY((JsonNode *)tmp->data)) {
+    tmp = elements;
+    for (i = 0; i < count; ++i) {
+        if (tmp && JSON_NODE_HOLDS_ARRAY((JsonNode *)tmp->data)) {
             JsonArray *element_array = json_node_get_array((JsonNode *)tmp->data);
             offsets[i + 1] = offsets[i] + json_array_get_length(element_array);
             json_array_foreach_element(element_array, ng_hint_array_read_number_to_array, (gpointer)&(hints[offsets[i]]));
+            tmp = g_list_next(tmp);
         }
         else {
             offsets[i + 1] = offsets[i];
@@ -160,6 +185,18 @@ Nonogram *ng_read_data_from_file(gchar *filename)
         ng = NULL;
         goto out;
     }
+
+    ng->priv = g_malloc0(sizeof(NonogramPrivate));
+    ng->priv->reference_count = 1;
+
+    guint i;
+    printf(" row hints (offset) [%d]:", ng->height);
+    for (i = 0; i <= ng->height; ++i)
+        printf(" %d", ng->row_offsets[i]);
+    printf("\n col hints (offset) [%d]:", ng->width);
+    for (i = 0; i <= ng->width; ++i)
+        printf(" %d", ng->col_offsets[i]);
+    printf("\n");
 
 out:
     if (parser)

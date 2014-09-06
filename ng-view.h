@@ -7,7 +7,8 @@
 typedef struct _NgView NgView;
 
 NgView *ng_view_new(Nonogram *ng);
-void ng_view_free(NgView *view);
+void ng_view_ref(NgView *view);
+void ng_view_unref(NgView *view);
 Nonogram *ng_view_get_data(NgView *view);
 
 void ng_view_update_map(NgView *view, guint x, guint y, guint cx, guint cy);

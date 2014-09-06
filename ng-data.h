@@ -2,6 +2,8 @@
 
 #include <glib.h>
 
+typedef struct _NonogramPrivate NonogramPrivate;
+
 typedef struct {
     guint16 width;
     guint16 height;
@@ -10,6 +12,7 @@ typedef struct {
     guint16 *row_offsets; /* height +1, offset indices of hints in row */
     guint16 *col_offsets;
     guchar *field;
+    NonogramPrivate *priv;
 } Nonogram;
 
 /* fills an area starting from point (x,y) cx units wide, cy units high
@@ -20,4 +23,5 @@ Nonogram *ng_read_data_from_file(gchar *filename);
 
 void ng_write_data_to_file(Nonogram *ng, gchar *filename);
 
-void ng_free(Nonogram *ng);
+void ng_data_ref(Nonogram *ng);
+void ng_data_unref(Nonogram *ng);

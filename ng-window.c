@@ -9,6 +9,42 @@ struct _NgWindow {
     NgView *view;
 };
 
+gchar *ng_window_get_filename(GtkFileChooserAction action, NgWindow *win)
+{
+    gchar *filename = NULL;
+
+    GtkWidget *dialog = gtk_file_chooser_dialog_new(action == GTK_FILE_CHOOSER_ACTION_OPEN ?
+            "Open nonogram" : "Save nonogram",
+            win ? GTK_WINDOW(win->window) : NULL, action,
+            "Cancel", GTK_RESPONSE_CANCEL,
+            "Select", GTK_RESPONSE_ACCEPT,
+            NULL);
+
+    GtkFileFilter *filter;
+
+    filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "Nonogram-Files");
+    gtk_file_filter_add_pattern(filter, "*.ng");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+
+    filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "All files");
+    gtk_file_filter_add_pattern(filter, "*");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+
+    if (action == GTK_FILE_CHOOSER_ACTION_SAVE)
+        gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "New Nonogram.ng");
+
+    gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+
+    if (res == GTK_RESPONSE_ACCEPT)
+        filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+    gtk_widget_destroy(dialog);
+
+    return filename;
+}
+
 gboolean ng_window_event_draw(GtkWidget *widget, cairo_t *cr, NgWindow *win)
 {
     if (win && win->view) {
@@ -29,12 +65,6 @@ gboolean ng_window_event_draw(GtkWidget *widget, cairo_t *cr, NgWindow *win)
 
 gboolean ng_window_configure_event(GtkWidget *widget, GdkEventConfigure *event, NgWindow *win)
 {
-    /* event->width, event->height */
-        guint width, height;
-
-        width = gtk_widget_get_allocated_width(widget);
-        height = gtk_widget_get_allocated_height(widget);
-
     if (win && win->view) {
         ng_view_set_size(win->view, event->width, event->height);
         ng_window_update(win);
@@ -154,6 +184,16 @@ gboolean ng_window_key_release_event(GtkWidget *widget, GdkEventKey *event, NgWi
 
 static void ng_activate_menu_item_open(GtkMenuItem *item, NgWindow *win)
 {
+    if (win == NULL)
+        return;
+    gchar *filename = ng_window_get_filename(GTK_FILE_CHOOSER_ACTION_OPEN, win);
+    if (filename != NULL) {
+        Nonogram *ng = ng_read_data_from_file(filename);
+        NgView *view = ng_view_new(ng);
+        ng_window_set_view(win, view);
+        ng_data_unref(ng);
+        ng_view_unref(view);
+    }
 }
 
 static void ng_activate_menu_item_save(GtkMenuItem *item, NgWindow *win)
@@ -263,7 +303,13 @@ void ng_window_update(NgWindow *win)
 void ng_window_set_view(NgWindow *win, NgView *view)
 {
     if (win) {
-        win->view = view;
+        if (win->view != view) {
+            if (win->view)
+                ng_view_unref(win->view);
+            if (view)
+                ng_view_ref(view);
+            win->view = view;
+        }
 
         if (view && win->drawing_area) {
             guint width, height;
