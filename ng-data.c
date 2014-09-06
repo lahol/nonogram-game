@@ -141,6 +141,23 @@ gboolean ng_read_data_state(Nonogram *ng, JsonNode *node)
     if (!JSON_NODE_HOLDS_OBJECT(node) || ng == NULL)
         return FALSE;
     JsonObject *obj = json_node_get_object(node);
+
+    /* TODO: hintmarks */
+    if (!json_object_has_member(obj, "picture") || !JSON_NODE_HOLDS_ARRAY(json_object_get_member(obj, "picture")))
+        return FALSE;
+
+    JsonArray *array = json_node_get_array(json_object_get_member(obj, "picture"));
+
+    guint i;
+    GList *elements = json_array_get_elements(array);
+    GList *tmp;
+    for (i = 0, tmp = elements; i < ng->width * ng->height && tmp; ++i, tmp = g_list_next(tmp)) {
+        if (!JSON_NODE_HOLDS_VALUE(tmp->data))
+            continue;
+        ng->field[i] = (guchar)json_node_get_int((JsonNode *)tmp->data);
+    }
+    g_list_free(elements);
+
     return TRUE;
 }
 
@@ -204,8 +221,119 @@ out:
     return ng;
 }
 
+void ng_write_data_general(Nonogram *ng, JsonBuilder *builder)
+{
+    if (ng == NULL || builder == NULL)
+        return;
+    json_builder_set_member_name(builder, "general");
+    json_builder_begin_object(builder);
+
+    json_builder_set_member_name(builder, "width");
+    json_builder_add_int_value(builder, ng->width);
+    
+    json_builder_set_member_name(builder, "height");
+    json_builder_add_int_value(builder, ng->height);
+
+    json_builder_set_member_name(builder, "version");
+    json_builder_add_string_value(builder, "1.0");
+
+    json_builder_end_object(builder);
+}
+
+void ng_write_data_hints(Nonogram *ng, JsonBuilder *builder)
+{
+    if (ng == NULL || builder == NULL)
+        return;
+
+    guint i, j;
+
+    json_builder_set_member_name(builder, "hints");
+    json_builder_begin_object(builder);
+
+    json_builder_set_member_name(builder, "rows");
+    json_builder_begin_array(builder);
+
+    for (i = 0; i < ng->height; ++i) {
+        json_builder_begin_array(builder);
+        for (j = ng->row_offsets[i]; j < ng->row_offsets[i+1]; ++j) {
+            json_builder_add_int_value(builder, ng->row_hints[j]);
+        }
+        json_builder_end_array(builder);
+    }
+
+    json_builder_end_array(builder);
+
+    json_builder_set_member_name(builder, "columns");
+    json_builder_begin_array(builder);
+
+    for (i = 0; i < ng->width; ++i) {
+        json_builder_begin_array(builder);
+        for (j = ng->col_offsets[i]; j < ng->col_offsets[i+1]; ++j) {
+            json_builder_add_int_value(builder, ng->col_hints[j]);
+        }
+        json_builder_end_array(builder);
+    }
+
+    json_builder_end_array(builder);
+
+    json_builder_end_object(builder);
+}
+
+void ng_write_data_state(Nonogram *ng, JsonBuilder *builder)
+{
+    if (ng == NULL || builder == NULL)
+        return;
+    json_builder_set_member_name(builder, "state");
+    json_builder_begin_object(builder);
+
+    guint i;
+    json_builder_set_member_name(builder, "rowmarks");
+    json_builder_begin_array(builder);
+    /* TODO: really implement hintmarks */
+    for (i = 0; i < ng->height; ++i)
+        json_builder_add_int_value(builder, 0);
+    json_builder_end_array(builder);
+
+    json_builder_set_member_name(builder, "columnmarks");
+    json_builder_begin_array(builder);
+    for (i = 0; i < ng->width; ++i)
+        json_builder_add_int_value(builder, 0);
+    json_builder_end_array(builder);
+
+    json_builder_set_member_name(builder, "picture");
+    json_builder_begin_array(builder);
+    for (i = 0; i < ng->width * ng->height; ++i) {
+        json_builder_add_int_value(builder, ng->field[i]);
+    }
+    json_builder_end_array(builder);
+
+    json_builder_end_object(builder);
+}
+
 void ng_write_data_to_file(Nonogram *ng, gchar *filename)
 {
+    if (ng == NULL || filename == NULL)
+        return;
+
+    JsonBuilder *builder = json_builder_new();
+    JsonNode *root;
+
+    json_builder_begin_object(builder);
+    ng_write_data_general(ng, builder);
+    ng_write_data_hints(ng, builder);
+    ng_write_data_state(ng, builder);
+    json_builder_end_object(builder);
+
+    root = json_builder_get_root(builder);
+    g_object_unref(builder);
+
+    JsonGenerator *gen = json_generator_new();
+    json_generator_set_root(gen, root);
+
+    json_generator_to_file(gen, filename, NULL);
+
+    json_node_free(root);
+    g_object_unref(gen);
 }
 
 /* fills an area starting from point (x,y) cx units wide, cy units high

@@ -198,6 +198,15 @@ static void ng_activate_menu_item_open(GtkMenuItem *item, NgWindow *win)
 
 static void ng_activate_menu_item_save(GtkMenuItem *item, NgWindow *win)
 {
+    if (win == NULL)
+        return;
+    Nonogram *ng = ng_view_get_data(win->view);
+    if (ng == NULL)
+        return;
+    gchar *filename = ng_window_get_filename(GTK_FILE_CHOOSER_ACTION_SAVE, win);
+    if (filename != NULL) {
+        ng_write_data_to_file(ng, filename);
+    }
 }
 
 static void ng_activate_menu_item_reset(GtkMenuItem *item, NgWindow *win)

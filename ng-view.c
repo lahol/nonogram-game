@@ -239,6 +239,8 @@ NgView *ng_view_new(Nonogram *ng)
         ng_view_render_grid(view->surface[SURF_COLHINTS], view->gridsize, ng->width, view->max_col_hints, 5, -1, 0.8);
         ng_view_render_hints(view->surface[SURF_COLHINTS], view->gridsize, ng->col_hints, ng->col_offsets,
                 ng->width, ORIENTATION_VERTICAL);
+
+        ng_view_update_map(view, 0, 0, view->ng->width, view->ng->height);
     }
 
     return view;
