@@ -111,7 +111,7 @@ gboolean ng_window_button_release_event(GtkWidget *widget, GdkEventButton *event
     if (win == NULL)
         return TRUE;
 
-    guchar value = 0xff;
+    guchar value = 0;
     guint vx, vy;
     NgViewCoordinateType type = ng_view_translate_coordinate(win->view, event->x,
             event->y, &vx, &vy);
@@ -129,7 +129,7 @@ gboolean ng_window_button_release_event(GtkWidget *widget, GdkEventButton *event
             if (event->state & GDK_SHIFT_MASK)
                 value = 0;
             else
-                value = 2;
+                value = 0xff;
         }
         else
             goto done;

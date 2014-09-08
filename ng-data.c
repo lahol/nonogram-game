@@ -143,20 +143,51 @@ gboolean ng_read_data_state(Nonogram *ng, JsonNode *node)
     JsonObject *obj = json_node_get_object(node);
 
     /* TODO: hintmarks */
-    if (!json_object_has_member(obj, "picture") || !JSON_NODE_HOLDS_ARRAY(json_object_get_member(obj, "picture")))
-        return FALSE;
-
-    JsonArray *array = json_node_get_array(json_object_get_member(obj, "picture"));
-
+    JsonArray *array;
     guint i;
-    GList *elements = json_array_get_elements(array);
-    GList *tmp;
-    for (i = 0, tmp = elements; i < ng->width * ng->height && tmp; ++i, tmp = g_list_next(tmp)) {
-        if (!JSON_NODE_HOLDS_VALUE(tmp->data))
-            continue;
-        ng->field[i] = (guchar)json_node_get_int((JsonNode *)tmp->data);
+    guint max;
+    GList *elements, *tmp;
+    if (json_object_has_member(obj, "picture") && JSON_NODE_HOLDS_ARRAY(json_object_get_member(obj, "picture"))) {
+
+        array = json_node_get_array(json_object_get_member(obj, "picture"));
+
+        elements = json_array_get_elements(array);
+        for (i = 0, tmp = elements; i < ng->width * ng->height && tmp; ++i, tmp = g_list_next(tmp)) {
+            if (!JSON_NODE_HOLDS_VALUE(tmp->data))
+                continue;
+            ng->field[i] = (guchar)json_node_get_int((JsonNode *)tmp->data);
+        }
+        g_list_free(elements);
     }
-    g_list_free(elements);
+
+    if (json_object_has_member(obj, "rowmarks") &&
+            JSON_NODE_HOLDS_ARRAY(json_object_get_member(obj, "rowmarks"))) {
+        array = json_node_get_array(json_object_get_member(obj, "rowmarks"));
+
+        elements = json_array_get_elements(array);
+        max = ng->row_offsets ? ng->row_offsets[ng->height] : 0;
+
+        for (i = 0, tmp = elements; i < max && tmp; ++i, tmp = g_list_next(tmp)) {
+            if (!JSON_NODE_HOLDS_VALUE(tmp->data))
+                continue;
+            NG_HINT_SET_STATE(ng->row_hints[i], (guint16)json_node_get_int((JsonNode *)tmp->data));
+        }
+        g_list_free(elements);
+    }
+
+    if (json_object_has_member(obj, "columnmarks") &&
+            JSON_NODE_HOLDS_ARRAY(json_object_get_member(obj, "columnmarks"))) {
+        array = json_node_get_array(json_object_get_member(obj, "columnmarks"));
+
+        elements = json_array_get_elements(array);
+        max = ng->col_offsets ? ng->col_offsets[ng->width] : 0;
+
+        for (i = 0, tmp = elements; i < max && tmp; ++i, tmp = g_list_next(tmp)) {
+            if (!JSON_NODE_HOLDS_VALUE(tmp->data))
+                continue;
+            NG_HINT_SET_STATE(ng->col_hints[i], (guint16)json_node_get_int((JsonNode *)tmp->data));
+        }
+    }
 
     return TRUE;
 }
@@ -256,7 +287,7 @@ void ng_write_data_hints(Nonogram *ng, JsonBuilder *builder)
     for (i = 0; i < ng->height; ++i) {
         json_builder_begin_array(builder);
         for (j = ng->row_offsets[i]; j < ng->row_offsets[i+1]; ++j) {
-            json_builder_add_int_value(builder, ng->row_hints[j]);
+            json_builder_add_int_value(builder, NG_HINT_NUM(ng->row_hints[j]));
         }
         json_builder_end_array(builder);
     }
@@ -269,7 +300,7 @@ void ng_write_data_hints(Nonogram *ng, JsonBuilder *builder)
     for (i = 0; i < ng->width; ++i) {
         json_builder_begin_array(builder);
         for (j = ng->col_offsets[i]; j < ng->col_offsets[i+1]; ++j) {
-            json_builder_add_int_value(builder, ng->col_hints[j]);
+            json_builder_add_int_value(builder, NG_HINT_NUM(ng->col_hints[j]));
         }
         json_builder_end_array(builder);
     }
@@ -286,18 +317,24 @@ void ng_write_data_state(Nonogram *ng, JsonBuilder *builder)
     json_builder_set_member_name(builder, "state");
     json_builder_begin_object(builder);
 
-    guint i;
+    guint i, j;
     json_builder_set_member_name(builder, "rowmarks");
     json_builder_begin_array(builder);
     /* TODO: really implement hintmarks */
-    for (i = 0; i < ng->height; ++i)
-        json_builder_add_int_value(builder, 0);
+    for (i = 0; i < ng->height; ++i) {
+        for (j = ng->row_offsets[i]; j < ng->row_offsets[i+1]; ++j) {
+            json_builder_add_int_value(builder, NG_HINT_STATE(ng->row_hints[j]));
+        }
+    }
     json_builder_end_array(builder);
 
     json_builder_set_member_name(builder, "columnmarks");
     json_builder_begin_array(builder);
-    for (i = 0; i < ng->width; ++i)
-        json_builder_add_int_value(builder, 0);
+    for (i = 0; i < ng->width; ++i) {
+        for (j = ng->col_offsets[i]; j < ng->col_offsets[i+1]; ++j) {
+            json_builder_add_int_value(builder, NG_HINT_STATE(ng->col_hints[j]));
+        }
+    }
     json_builder_end_array(builder);
 
     json_builder_set_member_name(builder, "picture");
@@ -337,7 +374,7 @@ void ng_write_data_to_file(Nonogram *ng, gchar *filename)
 }
 
 /* fills an area starting from point (x,y) cx units wide, cy units high
- * with value (for monochrom: 1: fill, 0: clear, 2: “lock” later more colors) */
+ * with value (for monochrom: 1: fill, 0: clear, 0xff: “lock” later more colors) */
 void ng_fill_area(Nonogram *ng, guint16 x, guint16 y, guint16 cx, guint16 cy, guchar value)
 {
     if (ng == NULL)

@@ -1,10 +1,13 @@
 #include "ng-view.h"
 #include <stdio.h>
+#include <math.h>
 
 enum SURFACEID {
     SURF_FIELD = 0,
     SURF_ROWHINTS,
     SURF_COLHINTS,
+    SURF_ROWHINTMARKS,
+    SURF_COLHINTMARKS,
     COUNT_SURF
 };
 
@@ -221,10 +224,14 @@ NgView *ng_view_new(Nonogram *ng)
 
         view->surf_width[SURF_FIELD] = view->gridsize * ng->width;
         view->surf_height[SURF_FIELD] = view->gridsize * ng->height;
-        view->surf_width[SURF_ROWHINTS] = view->gridsize * view->max_row_hints;
-        view->surf_height[SURF_ROWHINTS] = view->gridsize * ng->height;
-        view->surf_width[SURF_COLHINTS] = view->gridsize * ng->width;
-        view->surf_height[SURF_COLHINTS] = view->gridsize * view->max_col_hints;
+        view->surf_width[SURF_ROWHINTS] = 
+            view->surf_width[SURF_ROWHINTMARKS] = view->gridsize * view->max_row_hints;
+        view->surf_height[SURF_ROWHINTS] =
+            view->surf_height[SURF_ROWHINTMARKS] = view->gridsize * ng->height;
+        view->surf_width[SURF_COLHINTS] =
+            view->surf_width[SURF_COLHINTMARKS] = view->gridsize * ng->width;
+        view->surf_height[SURF_COLHINTS] =
+            view->surf_height[SURF_COLHINTMARKS] = view->gridsize * view->max_col_hints;
 
         for (i = 0; i < COUNT_SURF; ++i) {
             printf("surface[%d]: %d x %d\n", i, view->surf_width[i], view->surf_height[i]);
@@ -271,15 +278,27 @@ void ng_view_update_map(NgView *view, guint x, guint y, guint cx, guint cy)
                 case 1:
                     cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 1.0);
                     break;
-                case 2:
+                case 0xff:
                     cairo_set_source_rgba(cr, 0.8, 0.0, 0.0, 1.0);
                     break;
                 default:
                     cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0);
                     break;
             }
-            cairo_rectangle(cr, i * view->gridsize + 1.0, j * view->gridsize + 1.0,
-                    view->gridsize - 2.0, view->gridsize - 2.0);
+            if (view->ng->field[j * view->ng->width + i] != 0xff) {
+                cairo_rectangle(cr, i * view->gridsize + 1.0, j * view->gridsize + 1.0,
+                        view->gridsize - 2.0, view->gridsize - 2.0);
+            }
+            else {
+                cairo_save(cr);
+                cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0);
+                cairo_rectangle(cr, i * view->gridsize + 1.0, j * view->gridsize + 1.0,
+                        view->gridsize - 2.0, view->gridsize - 2.0);
+                cairo_fill(cr);
+                cairo_restore(cr);
+                cairo_arc(cr, (i + 0.5) * view->gridsize, (j + 0.5) * view->gridsize,
+                        0.1 * view->gridsize, 0, 2 * M_PI);
+            }
             cairo_fill(cr);
         }
     }
