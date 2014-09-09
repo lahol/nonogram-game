@@ -6,8 +6,6 @@ enum SURFACEID {
     SURF_FIELD = 0,
     SURF_ROWHINTS,
     SURF_COLHINTS,
-    SURF_ROWHINTMARKS,
-    SURF_COLHINTMARKS,
     COUNT_SURF
 };
 
@@ -181,7 +179,7 @@ void ng_view_render_hints(cairo_surface_t *surf, guint gridsize, guint32 *hints,
     cairo_set_font_size(cr, 10);
     for (i = 0; i < count; ++i) {
         while (offset < offsets[i+1]) {
-            snprintf(buf, 8, "%d", hints[offset]);
+            snprintf(buf, 8, "%d", NG_HINT_NUM(hints[offset]));
             cairo_text_extents(cr, buf, &extents);
             cairo_move_to(cr, (col + 0.5) * gridsize - extents.width * 0.5,
                               (row - 0.5) * gridsize + extents.height * 0.5);
@@ -234,14 +232,10 @@ NgView *ng_view_new(Nonogram *ng)
 
         view->surf_width[SURF_FIELD] = view->gridsize * ng->width;
         view->surf_height[SURF_FIELD] = view->gridsize * ng->height;
-        view->surf_width[SURF_ROWHINTS] = 
-            view->surf_width[SURF_ROWHINTMARKS] = view->gridsize * view->max_row_hints;
-        view->surf_height[SURF_ROWHINTS] =
-            view->surf_height[SURF_ROWHINTMARKS] = view->gridsize * ng->height;
-        view->surf_width[SURF_COLHINTS] =
-            view->surf_width[SURF_COLHINTMARKS] = view->gridsize * ng->width;
-        view->surf_height[SURF_COLHINTS] =
-            view->surf_height[SURF_COLHINTMARKS] = view->gridsize * view->max_col_hints;
+        view->surf_width[SURF_ROWHINTS] = view->gridsize * view->max_row_hints;
+        view->surf_height[SURF_ROWHINTS] = view->gridsize * ng->height;
+        view->surf_width[SURF_COLHINTS] = view->gridsize * ng->width;
+        view->surf_height[SURF_COLHINTS] = view->gridsize * view->max_col_hints;
 
         for (i = 0; i < COUNT_SURF; ++i) {
             printf("surface[%d]: %d x %d\n", i, view->surf_width[i], view->surf_height[i]);
@@ -258,6 +252,8 @@ NgView *ng_view_new(Nonogram *ng)
                 ng->width, ORIENTATION_VERTICAL);
 
         ng_view_update_map(view, 0, 0, view->ng->width, view->ng->height);
+        ng_view_update_marks(view, NG_VIEW_COORDINATE_ROW_HINT, 0, 0, view->max_row_hints, ng->height);
+        ng_view_update_marks(view, NG_VIEW_COORDINATE_COLUMN_HINT, 0, 0, ng->width, view->max_col_hints);
     }
 
     return view;
@@ -313,6 +309,74 @@ void ng_view_update_map(NgView *view, guint x, guint y, guint cx, guint cy)
         }
     }
 
+    cairo_destroy(cr);
+}
+
+void ng_view_update_marks(NgView *view, NgViewCoordinateType type, guint x, guint y, guint cx, guint cy)
+{
+    if (view == NULL || view->ng == NULL)
+        return;
+    if (cx == 0 || cy == 0)
+        return;
+    enum SURFACEID id;
+    guint max_x, max_y;
+    guint32 *hints;
+
+    if (type == NG_VIEW_COORDINATE_ROW_HINT) {
+        if (x >= view->max_row_hints || y >= view->ng->height || view->surface[SURF_ROWHINTS] == NULL)
+            return;
+        id = SURF_ROWHINTS;
+        max_x = view->max_row_hints;
+        max_y = view->ng->height;
+        hints = view->ng->row_hints;
+    }
+    else if (type == NG_VIEW_COORDINATE_COLUMN_HINT) {
+        if (y >= view->max_col_hints || x >= view->ng->width || view->surface[SURF_COLHINTS] == NULL)
+            return;
+        id = SURF_COLHINTS;
+        max_x = view->ng->width;
+        max_y = view->max_col_hints;
+        hints = view->ng->col_hints;
+    }
+    else {
+        return;
+    }
+
+    guint i, j;
+    cairo_t *cr = cairo_create(view->surface[id]);
+    guint16 offset;
+    gchar buf[8];
+    cairo_text_extents_t extents;
+    for (j = y; j < max_y && j < y + cy; ++j) {
+        for (i = x; i < max_x && i < x + cx; ++i) {
+            if (ng_view_translate_hint_position(view, type, i, j, &offset)) {
+                cairo_save(cr);
+                if (NG_HINT_STATE(hints[offset]) == 0) {
+                    cairo_set_source_rgba(cr, 0.8, 0.8, 0.8, 1.0);
+                    cairo_rectangle(cr, i * view->gridsize + 1.0, j * view->gridsize + 1.0,
+                            view->gridsize - 2.0, view->gridsize - 2.0);
+                    cairo_fill(cr);
+                    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 1.0);
+                    snprintf(buf, 8, "%d", NG_HINT_NUM(hints[offset]));
+                    cairo_text_extents(cr, buf, &extents);
+                    cairo_move_to(cr, (i + 0.5) * view->gridsize - extents.width * 0.5,
+                                      (j + 0.5) * view->gridsize + extents.height * 0.5);
+                    cairo_show_text(cr, buf);
+                }
+                else {
+                    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 1.0);
+                    cairo_set_line_width(cr, 1.0);
+                    cairo_move_to(cr, i * view->gridsize + 2.0, j * view->gridsize + 2.0);
+                    cairo_line_to(cr, (i + 1) * view->gridsize - 2.0, (j + 1) * view->gridsize - 2.0);
+                    cairo_stroke(cr);
+                    cairo_move_to(cr, i * view->gridsize + 2.0, (j + 1) * view->gridsize - 2.0);
+                    cairo_line_to(cr, (i + 1) * view->gridsize - 2.0, j * view->gridsize + 2.0);
+                    cairo_stroke(cr);
+                }
+                cairo_restore(cr);
+            }
+        }
+    }
     cairo_destroy(cr);
 }
 
@@ -374,7 +438,6 @@ void ng_view_scroll(NgView *view, NgViewScrollDirection direction)
     }
 }
 
-/* todo: set height, width on configure -> needed for translate coordinates */
 void ng_view_render(NgView *view, cairo_t *cr)
 {
     g_return_if_fail(view != NULL);
@@ -487,19 +550,51 @@ NgViewCoordinateType ng_view_translate_coordinate(NgView *view, gint vx, gint vy
         return NG_VIEW_COORDINATE_FIELD;
     }
 
-    if (tx < view->ng->width && ty - view->ng->height < view->max_col_hints) {
-        if (ox) *ox = tx;
-        if (oy) *oy = ty - view->ng->height;
-        return NG_VIEW_COORDINATE_COLUMN_HINT;
+    if (vy >= view->visible_height) {
+        tx = (vx + view->offsetx) / view->gridsize;
+        ty = (vy - view->visible_height) / view->gridsize;
+
+        if (tx < view->ng->width && ty < view->max_col_hints) {
+            if (ox) *ox = tx;
+            if (oy) *oy = ty;
+            return NG_VIEW_COORDINATE_COLUMN_HINT;
+        }
     }
 
-    if (tx - view->ng->width < view->max_row_hints && ty < view->ng->height) {
-        if (ox) *ox = tx - view->ng->width;
-        if (oy) *oy = ty;
-        return NG_VIEW_COORDINATE_ROW_HINT;
+    if (vx >= view->visible_width) {
+        tx = (vx - view->visible_width) / view->gridsize;
+        ty = (vy + view->offsety) / view->gridsize;
+
+        if (tx < view->max_row_hints && ty < view->ng->height) {
+            if (ox) *ox = tx;
+            if (oy) *oy = ty;
+            return NG_VIEW_COORDINATE_ROW_HINT;
+        }
     }
 
     return NG_VIEW_COORDINATE_UNKNOWN;
+}
+
+gboolean ng_view_translate_hint_position(NgView *view, NgViewCoordinateType type, guint hx, guint hy, guint16 *offset)
+{
+    /* this function is only called when we already have valid coordinates for the displayed
+     * grid, i.e, hx, hy do not exceed bounds and view and view->ng and offsets are valid */
+    if (type == NG_VIEW_COORDINATE_ROW_HINT) {
+        if (hx + view->ng->row_offsets[hy] >= view->ng->row_offsets[hy + 1])
+            return FALSE;
+        if (offset)
+            *offset = view->ng->row_offsets[hy] + hx;
+        return TRUE;
+    }
+    else if (type == NG_VIEW_COORDINATE_COLUMN_HINT) {
+        if (hy + view->ng->col_offsets[hx] >= view->ng->col_offsets[hx + 1])
+            return FALSE;
+        if (offset)
+            *offset = view->ng->col_offsets[hx] + hy;
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 void ng_view_tmp_line_start(NgView *view, guint x, guint y)

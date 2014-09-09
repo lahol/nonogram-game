@@ -388,3 +388,23 @@ void ng_fill_area(Nonogram *ng, guint16 x, guint16 y, guint16 cx, guint16 cy, gu
         }
     }
 }
+
+void ng_toggle_hint(Nonogram *ng, NgHintType type, guint16 offset)
+{
+    if (ng == NULL)
+        return;
+    if (type == NG_HINT_ROW) {
+        if (ng->row_offsets == NULL)
+            return;
+        if (ng->row_offsets[ng->height] <= offset)
+            return;
+        NG_HINT_SET_STATE(ng->row_hints[offset], 1 - NG_HINT_STATE(ng->row_hints[offset]));
+    }
+    else if (type == NG_HINT_COLUMN) {
+        if (ng->col_offsets == NULL)
+            return;
+        if (ng->col_offsets[ng->width] <= offset)
+            return;
+        NG_HINT_SET_STATE(ng->col_hints[offset], 1 - NG_HINT_STATE(ng->col_hints[offset]));
+    }
+}

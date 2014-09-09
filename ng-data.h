@@ -19,9 +19,15 @@ typedef struct {
 #define NG_HINT_STATE(x) (((x) >> 16) & 0xffff)
 #define NG_HINT_SET_STATE(x,s) (x) = ((x) & 0xffff) | (((s) & 0xffff) << 16)
 
+typedef enum {
+    NG_HINT_ROW,
+    NG_HINT_COLUMN
+} NgHintType;
+
 /* fills an area starting from point (x,y) cx units wide, cy units high
  * with value (for monochrom: 1: fill, 0: clear, 2: “lock” later more colors) */
 void ng_fill_area(Nonogram *ng, guint16 x, guint16 y, guint16 cx, guint16 cy, guchar value);
+void ng_toggle_hint(Nonogram *ng, NgHintType type, guint16 offset);
 
 Nonogram *ng_read_data_from_file(gchar *filename);
 

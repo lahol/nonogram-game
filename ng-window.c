@@ -154,6 +154,17 @@ gboolean ng_window_button_release_event(GtkWidget *widget, GdkEventButton *event
             ng_window_update(win);
         }
     }
+    else if (type == NG_VIEW_COORDINATE_ROW_HINT || type == NG_VIEW_COORDINATE_COLUMN_HINT) {
+        if (event->button == 1) {
+            guint16 offset;
+            if (ng_view_translate_hint_position(win->view, type, vx, vy, &offset)) {
+                ng_toggle_hint(ng_view_get_data(win->view), type == NG_VIEW_COORDINATE_ROW_HINT ? NG_HINT_ROW : NG_HINT_COLUMN,
+                        offset);
+                ng_view_update_marks(win->view, type, vx, vy, 1, 1);
+                ng_window_update(win);
+            }
+        }
+    }
 
 done:
     ng_view_tmp_line_clear(win->view);
