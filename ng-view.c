@@ -35,6 +35,9 @@ struct _NgView {
     guint width;
     guint height;
 
+    gint cursor_x;
+    gint cursor_y;
+
     guint visible_width;
     guint visible_height;
 
@@ -99,6 +102,13 @@ void ng_view_update_visible_area(NgView *view)
             view->visible_height -= view->surf_height[SURF_COLHINTS];
         else
             view->visible_height = 0;
+    }
+
+    if (view->surface[SURF_FIELD]) {
+        if (view->visible_width > view->surf_width[SURF_FIELD])
+            view->visible_width = view->surf_width[SURF_FIELD];
+        if (view->visible_height > view->surf_height[SURF_FIELD])
+            view->visible_height = view->surf_height[SURF_FIELD];
     }
 }
 
@@ -316,6 +326,14 @@ void ng_view_set_size(NgView *view, guint width, guint height)
     ng_view_update_visible_area(view);
 }
 
+void ng_view_set_cursor_pos(NgView *view, gint x, gint y)
+{
+    g_return_if_fail(view != NULL);
+
+    view->cursor_x = x;
+    view->cursor_y = y;
+}
+
 void ng_view_scroll(NgView *view, NgViewScrollDirection direction)
 {
     g_return_if_fail(view != NULL);
@@ -371,46 +389,32 @@ void ng_view_render(NgView *view, cairo_t *cr)
         cairo_rectangle(cr, 0, 0, view->visible_width, view->visible_height);
         cairo_clip(cr);
         cairo_set_source_surface(cr, view->surface[SURF_FIELD], -view->offsetx, -view->offsety);
-        cairo_rectangle(cr, 0, 0,
-                view->surf_width[SURF_FIELD] < view->visible_width ?
-                view->surf_width[SURF_FIELD] : view->visible_width,
-                view->surf_height[SURF_FIELD] < view->visible_height ?
-                view->surf_height[SURF_FIELD] : view->visible_height);/*view->surf_width[SURF_FIELD], view->surf_height[SURF_FIELD]);*/
+        cairo_rectangle(cr, 0, 0, view->visible_width, view->visible_height);
         cairo_fill(cr);
         cairo_restore(cr);
     }
 
     if (view->surface[SURF_ROWHINTS]) {
         cairo_save(cr);
-        cairo_translate(cr, view->surf_width[SURF_FIELD] < view->visible_width ?
-            view->surf_width[SURF_FIELD] : view->visible_width, 0);
+        cairo_translate(cr, view->visible_width, 0);
         cairo_set_source_surface(cr, view->surface[SURF_ROWHINTS], 0, -view->offsety);
-        cairo_rectangle(cr, 0, 0, view->surf_width[SURF_ROWHINTS],
-                view->surf_height[SURF_FIELD] < view->visible_height ?
-                view->surf_height[SURF_FIELD] : view->visible_height);
+        cairo_rectangle(cr, 0, 0, view->surf_width[SURF_ROWHINTS], view->visible_height);
         cairo_fill(cr);
         cairo_restore(cr);
     }
 
     if (view->surface[SURF_COLHINTS]) {
         cairo_save(cr);
-        cairo_translate(cr, 0, 
-                view->surf_height[SURF_FIELD] < view->visible_height ?
-                view->surf_height[SURF_FIELD] : view->visible_height);
+        cairo_translate(cr, 0, view->visible_height);
         cairo_set_source_surface(cr, view->surface[SURF_COLHINTS], -view->offsetx, 0);
-        cairo_rectangle(cr, 0, 0, view->surf_width[SURF_FIELD] < view->visible_width ?
-                view->surf_width[SURF_FIELD] : view->visible_width, view->surf_height[SURF_COLHINTS]);
+        cairo_rectangle(cr, 0, 0, view->visible_width, view->surf_height[SURF_COLHINTS]);
         cairo_fill(cr);
         cairo_restore(cr);
     }
 
     if (view->flags & FLAG_TMP_LINE) {
         cairo_save(cr);
-        cairo_rectangle(cr, 0, 0,
-                view->surf_width[SURF_FIELD] < view->visible_width ?
-                view->surf_width[SURF_FIELD] : view->visible_width,
-                view->surf_height[SURF_FIELD] < view->visible_height ?
-                view->surf_height[SURF_FIELD] : view->visible_height);
+        cairo_rectangle(cr, 0, 0, view->visible_width, view->visible_height);
         cairo_clip(cr);
         cairo_translate(cr, -view->offsetx, -view->offsety);
         cairo_set_source_rgba(cr, 0.7, 0.7, 0.7, 0.5);
@@ -439,6 +443,29 @@ void ng_view_render(NgView *view, cairo_t *cr)
         }
         cairo_restore(cr);
     }
+    
+    guint vx, vy;
+    NgViewCoordinateType type = ng_view_translate_coordinate(view, view->cursor_x, view->cursor_y, &vx, &vy);
+    if (type == NG_VIEW_COORDINATE_FIELD) {
+        if (view->surface[SURF_ROWHINTS]) {
+            cairo_save(cr);
+            cairo_translate(cr, view->visible_width, 0);
+            cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0);
+            cairo_set_line_width(cr, 2.0);
+            cairo_rectangle(cr, 0, vy * view->gridsize - view->offsety, view->surf_width[SURF_ROWHINTS], view->gridsize);
+            cairo_stroke(cr);
+            cairo_restore(cr);
+        }
+        if (view->surface[SURF_COLHINTS]) {
+            cairo_save(cr);
+            cairo_translate(cr, 0, view->visible_height);
+            cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0);
+            cairo_set_line_width(cr, 2.0);
+            cairo_rectangle(cr, vx * view->gridsize - view->offsetx, 0, view->gridsize, view->surf_height[SURF_COLHINTS]);
+            cairo_stroke(cr);
+            cairo_restore(cr);
+        }
+    }
 }
 
 NgViewCoordinateType ng_view_translate_coordinate(NgView *view, gint vx, gint vy, guint *ox, guint *oy)
@@ -453,7 +480,8 @@ NgViewCoordinateType ng_view_translate_coordinate(NgView *view, gint vx, gint vy
     guint tx = (vx + view->offsetx) / view->gridsize;
     guint ty = (vy + view->offsety) / view->gridsize;
 
-    if (tx < view->ng->width && ty < view->ng->height) {
+    if (vx < view->visible_width && vy < view->visible_height &&
+            tx < view->ng->width && ty < view->ng->height) {
         if (ox) *ox = tx;
         if (oy) *oy = ty;
         return NG_VIEW_COORDINATE_FIELD;

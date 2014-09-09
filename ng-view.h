@@ -16,6 +16,7 @@ void ng_view_update_map(NgView *view, guint x, guint y, guint cx, guint cy);
 void ng_view_render(NgView *view, cairo_t *cr);
 
 void ng_view_set_size(NgView *view, guint width, guint height);
+void ng_view_set_cursor_pos(NgView *view, gint x, gint y);
 
 typedef enum {
     NG_VIEW_SCROLL_LEFT,

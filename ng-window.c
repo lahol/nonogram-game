@@ -7,6 +7,10 @@ struct _NgWindow {
     GtkWidget *menu_bar;
     GtkWidget *status_bar;
     NgView *view;
+
+    NgViewCoordinateType last_type;
+    guint last_vx;
+    guint last_vy;
 };
 
 gchar *ng_window_get_filename(GtkFileChooserAction action, NgWindow *win)
@@ -101,7 +105,17 @@ gboolean ng_window_motion_notify_event(GtkWidget *widget, GdkEventMotion *event,
     if (type == NG_VIEW_COORDINATE_FIELD) {
         ng_view_tmp_line_end(win->view, vx, vy);
     }
-    ng_window_update(win);
+
+    if (win->view)
+        ng_view_set_cursor_pos(win->view, event->x, event->y);
+
+    if (type != win->last_type || vx != win->last_vx || vy != win->last_vy) {
+        win->last_type = type;
+        win->last_vx = vx;
+        win->last_vy = vy;
+
+        ng_window_update(win);
+    }
 
     return TRUE;
 }
