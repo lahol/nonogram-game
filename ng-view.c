@@ -380,6 +380,17 @@ void ng_view_update_marks(NgView *view, NgViewCoordinateType type, guint x, guin
     cairo_destroy(cr);
 }
 
+void ng_view_get_required_size(NgView *view, guint *width, guint *height)
+{
+    g_return_if_fail(view != NULL);
+    g_return_if_fail(view->ng != NULL);
+
+    if (width)
+        *width = (view->ng->width + view->max_row_hints) * view->gridsize;
+    if (height)
+        *height = (view->ng->height + view->max_col_hints) * view->gridsize;
+}
+
 void ng_view_set_size(NgView *view, guint width, guint height)
 {
     g_return_if_fail(view != NULL);
@@ -438,7 +449,7 @@ void ng_view_scroll(NgView *view, NgViewScrollDirection direction)
     }
 }
 
-void ng_view_render(NgView *view, cairo_t *cr)
+void ng_view_render(NgView *view, cairo_t *cr, gboolean render_overlays)
 {
     g_return_if_fail(view != NULL);
 
@@ -474,6 +485,9 @@ void ng_view_render(NgView *view, cairo_t *cr)
         cairo_fill(cr);
         cairo_restore(cr);
     }
+
+    if (!render_overlays)
+        return;
 
     if (view->flags & FLAG_TMP_LINE) {
         cairo_save(cr);
@@ -529,6 +543,37 @@ void ng_view_render(NgView *view, cairo_t *cr)
             cairo_restore(cr);
         }
     }
+}
+
+void ng_view_export_to_file(NgView *view, const gchar *filename)
+{
+    g_return_if_fail(view != NULL);
+    g_return_if_fail(view->ng != NULL);
+    g_return_if_fail(filename != NULL);
+
+    NgView *offscreen = ng_view_new(view->ng);
+
+    guint width = 0, height = 0;
+    ng_view_get_required_size(offscreen, &width, &height);
+    if (width == 0 || height == 0)
+        goto done;
+    ng_view_set_size(offscreen, width, height);
+
+    cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+    cairo_t *cr = cairo_create(surf);
+
+    ng_view_render(offscreen, cr, FALSE);
+
+    cairo_destroy(cr);
+
+    cairo_status_t status = cairo_surface_write_to_png(surf, filename);
+    cairo_surface_destroy(surf);
+
+    if (status != CAIRO_STATUS_SUCCESS)
+        printf("Error exporting to file `%s'\n", filename);
+
+done:
+    ng_view_unref(offscreen);
 }
 
 NgViewCoordinateType ng_view_translate_coordinate(NgView *view, gint vx, gint vy, guint *ox, guint *oy)

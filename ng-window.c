@@ -13,7 +13,12 @@ struct _NgWindow {
     guint last_vy;
 };
 
-gchar *ng_window_get_filename(GtkFileChooserAction action, NgWindow *win)
+enum NonogramFileType {
+    NG_FILE_TYPE_NONOGRAM,
+    NG_FILE_TYPE_PNG
+};
+
+gchar *ng_window_get_filename(GtkFileChooserAction action, NgWindow *win, enum NonogramFileType type)
 {
     gchar *filename = NULL;
 
@@ -26,18 +31,30 @@ gchar *ng_window_get_filename(GtkFileChooserAction action, NgWindow *win)
 
     GtkFileFilter *filter;
 
-    filter = gtk_file_filter_new();
-    gtk_file_filter_set_name(filter, "Nonogram-Files");
-    gtk_file_filter_add_pattern(filter, "*.ng");
-    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+    if (type == NG_FILE_TYPE_NONOGRAM) {
+        filter = gtk_file_filter_new();
+        gtk_file_filter_set_name(filter, "Nonogram-Files");
+        gtk_file_filter_add_pattern(filter, "*.ng");
+        gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+    }
+    else if (type == NG_FILE_TYPE_PNG) {
+        filter = gtk_file_filter_new();
+        gtk_file_filter_set_name(filter, "PNG-Images");
+        gtk_file_filter_add_pattern(filter, "*.png");
+        gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+    }
 
     filter = gtk_file_filter_new();
     gtk_file_filter_set_name(filter, "All files");
     gtk_file_filter_add_pattern(filter, "*");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
 
-    if (action == GTK_FILE_CHOOSER_ACTION_SAVE)
-        gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "New Nonogram.ng");
+    if (action == GTK_FILE_CHOOSER_ACTION_SAVE) {
+        if (type == NG_FILE_TYPE_NONOGRAM)
+            gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "New Nonogram.ng");
+        else if (type == NG_FILE_TYPE_PNG)
+            gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "Export.png");
+    }
 
     gint res = gtk_dialog_run(GTK_DIALOG(dialog));
 
@@ -52,7 +69,7 @@ gchar *ng_window_get_filename(GtkFileChooserAction action, NgWindow *win)
 gboolean ng_window_event_draw(GtkWidget *widget, cairo_t *cr, NgWindow *win)
 {
     if (win && win->view) {
-        ng_view_render(win->view, cr);
+        ng_view_render(win->view, cr, TRUE);
     }
     else {
         guint width, height;
@@ -211,7 +228,7 @@ static void ng_activate_menu_item_open(GtkMenuItem *item, NgWindow *win)
 {
     if (win == NULL)
         return;
-    gchar *filename = ng_window_get_filename(GTK_FILE_CHOOSER_ACTION_OPEN, win);
+    gchar *filename = ng_window_get_filename(GTK_FILE_CHOOSER_ACTION_OPEN, win, NG_FILE_TYPE_NONOGRAM);
     if (filename != NULL) {
         Nonogram *ng = ng_read_data_from_file(filename);
         NgView *view = ng_view_new(ng);
@@ -228,7 +245,7 @@ static void ng_activate_menu_item_save(GtkMenuItem *item, NgWindow *win)
     Nonogram *ng = ng_view_get_data(win->view);
     if (ng == NULL)
         return;
-    gchar *filename = ng_window_get_filename(GTK_FILE_CHOOSER_ACTION_SAVE, win);
+    gchar *filename = ng_window_get_filename(GTK_FILE_CHOOSER_ACTION_SAVE, win, NG_FILE_TYPE_NONOGRAM);
     if (filename != NULL) {
         ng_write_data_to_file(ng, filename);
     }
@@ -236,6 +253,17 @@ static void ng_activate_menu_item_save(GtkMenuItem *item, NgWindow *win)
 
 static void ng_activate_menu_item_reset(GtkMenuItem *item, NgWindow *win)
 {
+}
+
+static void ng_activate_menu_item_export(GtkMenuItem *item, NgWindow *win)
+{
+    if (win == NULL || win->view == NULL)
+        return;
+
+    gchar *filename = ng_window_get_filename(GTK_FILE_CHOOSER_ACTION_SAVE, win, NG_FILE_TYPE_PNG);
+    if (filename != NULL) {
+        ng_view_export_to_file(win->view, filename);
+    }
 }
 
 static void ng_activate_menu_item_quit(GtkMenuItem *item, NgWindow *win)
@@ -261,6 +289,11 @@ GtkWidget *ng_window_create_main_menu(NgWindow *win)
 
     item = gtk_menu_item_new_with_label("Reset");
     g_signal_connect(G_OBJECT(item), "activate", G_CALLBACK(ng_activate_menu_item_reset), win);
+    gtk_menu_shell_append(GTK_MENU_SHELL(submenu), item);
+    gtk_widget_show(item);
+
+    item = gtk_menu_item_new_with_label("Export");
+    g_signal_connect(G_OBJECT(item), "activate", G_CALLBACK(ng_activate_menu_item_export), win);
     gtk_menu_shell_append(GTK_MENU_SHELL(submenu), item);
     gtk_widget_show(item);
 

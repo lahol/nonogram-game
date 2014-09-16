@@ -13,8 +13,10 @@ Nonogram *ng_view_get_data(NgView *view);
 
 void ng_view_update_map(NgView *view, guint x, guint y, guint cx, guint cy);
 
-void ng_view_render(NgView *view, cairo_t *cr);
+void ng_view_render(NgView *view, cairo_t *cr, gboolean render_overlays);
+void ng_view_export_to_file(NgView *view, const gchar *filename);
 
+void ng_view_get_required_size(NgView *view, guint *width, guint *height);
 void ng_view_set_size(NgView *view, guint width, guint height);
 void ng_view_set_cursor_pos(NgView *view, gint x, gint y);
 
