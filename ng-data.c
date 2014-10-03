@@ -147,7 +147,6 @@ gboolean ng_read_data_state(Nonogram *ng, JsonNode *node)
         return FALSE;
     JsonObject *obj = json_node_get_object(node);
 
-    /* TODO: hintmarks */
     JsonArray *array;
     guint i;
     guint max;
