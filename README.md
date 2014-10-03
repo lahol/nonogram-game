@@ -9,6 +9,9 @@ Nonogram-game lets you tick off and lock squares using the left or
 the right mouse button, respectively. Large puzzles (i.e. not fitting completely
 in the window) may be scrolled. Hints also may be ticked off.
 
+Scrolling is done with the mouse wheel or shift + mouse wheel for vertical or
+horizontal direction.
+
 ## Installation ##
 
 Just run
