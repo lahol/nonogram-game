@@ -1,3 +1,8 @@
+/*
+ * nonogram-game -- play nonograms
+ * Copyright (c) 2014 Holger Langenau (see also: LICENSE)
+ *
+ */
 #include "ng-data.h"
 #include <stdio.h>
 #include <json-glib/json-glib.h>

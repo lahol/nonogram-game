@@ -1,3 +1,8 @@
+/*
+ * nonogram-game -- play nonograms
+ * Copyright (c) 2014 Holger Langenau (see also: LICENSE)
+ *
+ */
 #include <stdio.h>
 #include <glib.h>
 #include <gtk/gtk.h>
