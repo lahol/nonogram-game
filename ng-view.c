@@ -404,6 +404,13 @@ void ng_view_set_size(NgView *view, guint width, guint height)
     view->height = height;
 
     ng_view_update_visible_area(view);
+
+    if (view->offsetx + view->visible_width > view->surf_width[SURF_FIELD])
+        view->offsetx = view->visible_width < view->surf_width[SURF_FIELD] ?
+            view->surf_width[SURF_FIELD] - view->visible_width : 0;
+    if (view->offsety + view->visible_height > view->surf_height[SURF_FIELD])
+        view->offsety = view->visible_height < view->surf_height[SURF_FIELD] ?
+            view->surf_height[SURF_FIELD] - view->visible_height : 0;
 }
 
 void ng_view_set_cursor_pos(NgView *view, gint x, gint y)
