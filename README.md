@@ -24,6 +24,6 @@ location just use
 
     $ make PREFIX=/your/app/dir install
 
-## Licence ##
+## License ##
 
 This program is licensed under a MIT license. See LICENSE.
